@@ -1,3 +1,3 @@
-[submodule "simple-ds1302"]
+[submodule "lib/simple-ds1302"]
 	path = lib/simple-ds1302
 	url = https://github.com/its-lautaro/simple-ds1302.git
