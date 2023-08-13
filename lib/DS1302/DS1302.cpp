@@ -249,35 +249,34 @@ char *DS1302::getDateStr(uint8_t slformat, uint8_t eformat, char divider)
 
 char *DS1302::getDOWStr(uint8_t format)
 {
-	char *output= "xxxxxxxxx";
+	char *output= "xxx";
 	Time t;
 	t=getTime();
 	switch (t.dow)
 	{
 		case MONDAY:
-			output="Monday";
+			output="LUN";
 			break;
 		case TUESDAY:
-			output="Tuesday";
+			output="MAR";
 			break;
 		case WEDNESDAY:
-			output="Wednesday";
+			output="MIE";
 			break;
 		case THURSDAY:
-			output="Thursday";
+			output="JUE";
 			break;
 		case FRIDAY:
-			output="Friday";
+			output="VIE";
 			break;
 		case SATURDAY:
-			output="Saturday";
+			output="SAB";
 			break;
 		case SUNDAY:
-			output="Sunday";
+			output="DOM";
 			break;
 	}     
-	if (format==FORMAT_SHORT)
-		output[3]=0;
+
 	return output;
 }
 
