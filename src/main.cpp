@@ -16,9 +16,11 @@ DS1302 rtc(4, 5, 6);
 #define CANCEL_PIN 7
 #define UP_PIN 8
 #define ENTER_PIN 9
+// Botones - Alias
 #define CANCEL 1
 #define UP 2
 #define ENTER 3
+// Botones - Flag
 int buttonPress = 0;
 
 // LCD
@@ -45,16 +47,22 @@ typedef struct {
 } Programa;
 Programa prog;
 
+// Obtiene la fecha y hora actual
 Time getTime() {
     return rtc.getTime();
 }
-
-void setTime(DS1302 rtc, int dow, int hr, int min, int sec, int date, int mon, int yr) {
-    rtc.setDOW(dow);        // Set Day-of-Week
-    rtc.setTime(hr, min, sec);     // 24hr format
-    rtc.setDate(date, mon, yr);   // Dd-Mm-YYYY
+// Programa la hora en el reloj
+void setTime(Time curr) {
+    // rtc.setDOW(curr.dow);        // Set Day-of-Week
+    // rtc.setDate(curr.date, curr.mon, curr.year);   // Dd-Mm-YYYY
+    rtc.setTime(curr.hour, curr.min, 0);     // 24hr format
 }
-
+// Programa la fecha en el reloj
+void setDate(Time curr) {
+    rtc.setDOW(curr.dow);
+    rtc.setDate(curr.date, curr.mon, curr.year);
+}
+// Enciende o apaga una estación determinada (1 o 2)
 void setSprinkler(int station, bool state) {
     if (state) {
         digitalWrite(station, LOW);
@@ -63,7 +71,7 @@ void setSprinkler(int station, bool state) {
         digitalWrite(station, HIGH);
     }
 }
-
+// Chequea el programa con el tiempo actual
 bool isProgram() {
     Time now = getTime();
     // Verificar mes
@@ -81,58 +89,27 @@ bool isProgram() {
     }
     return false;
 }
-
-// to prevent possible overflow on millis() count which may cause the sprinklers to exceed its duration setting I think it would be necessary to reset the device every 24 hours (overflow occurs every ~49 days)
+// Verifica que sean las 0:00 para realizar el reinicio de seguridad que evita el overflow de millis
 bool isSafetyReset() {
     Time now = getTime();
-    return (now.hour == 0 && now.min == 0 && now.sec == 0);
+    return (now.hour == 0 && now.min == 1 && now.sec == 0);
 }
-
+// Envia señal de reinicio a través del pin que se encuentra conectado a Reset
 void safetyReset() {
-    Serial.print("Last millis: ");
-    Serial.println(millis());
-    delay(100);
     digitalWrite(RESET_PIN, LOW);
 }
-
+// Inicializa el valor de terminación que chequea el timer para apagar los regadores
 void setTimer(unsigned long duracion) {
     unsigned long current = millis();
     termination = (duracion * 60000) + current;
 }
-
+// Verifica si ya transcurrio la duración de encendido de los regadores y lo informa mediante el flag global timeOut
 void checkTimer() {
     unsigned long current = millis();
     if (current >= termination) {
         timeOut = true;
     }
     else timeOut = false;
-}
-
-void lcdRegando(int station) {
-    lcd.clear();
-
-    if (station == 1) {
-        lcd.print("** Estación 1 **");
-    }
-    else {
-        lcd.print("** Estación 2 **");
-    }
-    lcd.setCursor(0, 1);
-    lcd.print("** Regando... **");
-    lcd.blink();
-}
-// Imprime fecha y debajo hora
-void printTime() {
-    lcd.clear();
-    lcd.setCursor(2, 0);
-    // Send Day-of-Week
-    lcd.print(rtc.getDOWStr(FORMAT_SHORT));
-    lcd.print(" ");
-    // Send date
-    lcd.print(rtc.getDateStr(FORMAT_SHORT, FORMAT_SHORT, '/'));//14
-
-    lcd.setCursor(4, 1);
-    lcd.print(rtc.getTimeStr());
 }
 // Devuelve el boton pulsado y tambien escribe la variable global buttonPress
 int pollButtons() {
@@ -158,12 +135,94 @@ int pollButtons() {
 
     return buttonPress;
 }
+// Imprime la estación de riego actual
+void LCD_Regando(int station) {
+    lcd.clear();
+
+    if (station == 1) {
+        lcd.print("** Estación 1 **");
+    }
+    else {
+        lcd.print("** Estación 2 **");
+    }
+    lcd.setCursor(0, 1);
+    lcd.print("** Regando... **");
+    lcd.blink();
+}
+// Imprime fecha y debajo hora. Se usa para el estado de Stand By
+void LCD_Time() {
+    lcd.clear();
+    lcd.setCursor(2, 0);
+    // Send Day-of-Week
+    lcd.print(rtc.getDOWStr(FORMAT_SHORT));
+    lcd.print(" ");
+    // Send date
+    lcd.print(rtc.getDateStr(FORMAT_SHORT, FORMAT_SHORT, '/'));//14
+
+    lcd.setCursor(4, 1);
+    lcd.print(rtc.getTimeStr());
+}
+// Imprime hora y min del tiempo pasado por argumento
+void LCD_Time(Time curr) {
+    delay(50);
+    lcd.setCursor(5, 1);
+    if (curr.hour < 10) {
+        lcd.print(0);
+    }
+    lcd.print(curr.hour);
+    lcd.print(":");
+    if (curr.min < 10) {
+        lcd.print(0);
+    }
+    lcd.print(curr.min);
+}
+// Imprime fecha del tiempo pasado por argumento
+void LCD_Date(Time curr) {
+    lcd.setCursor(2, 1);
+    switch (curr.dow) {
+    case MONDAY:
+        lcd.print("LUN");
+        break;
+    case TUESDAY:
+        lcd.print("MAR");
+        break;
+    case WEDNESDAY:
+        lcd.print("MIE");
+        break;
+    case THURSDAY:
+        lcd.print("JUE");
+        break;
+    case FRIDAY:
+        lcd.print("VIE");
+        break;
+    case SATURDAY:
+        lcd.print("SAB");
+        break;
+    case SUNDAY:
+        lcd.print("DOM");
+        break;
+    }
+    lcd.setCursor(6, 1);
+    if (curr.date < 10) {
+        lcd.print(0);
+    }
+    lcd.print(curr.date);
+    lcd.print("/");
+    if (curr.mon < 10) {
+        lcd.print(0);
+    }
+    lcd.print(curr.mon);
+    lcd.print("/");
+    if (curr.year < 10) {
+        lcd.print(0);
+    }
+    lcd.print(curr.year);
+}
 // La interfaz informa al usuario que esta ingresando a modificar la hora
 void LCD_GoToHora() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("MODIFICAR HORA?");
-    lcd.blink();
 }
 // La interfaz informa al usuario que esta ingresando a modificar la fecha
 void LCD_GoToFecha() {
@@ -177,8 +236,27 @@ void LCD_GoToProg() {
     lcd.setCursor(0, 0);
     lcd.print("MODIFICAR PROG.?");
 }
-
+// La interfaz muestra que se esta modificando la hora
+void LCD_ModHora() {
+    lcd.clear();
+    lcd.setCursor(1, 0);
+    lcd.print("MODIFICAR HORA");
+}
+// La interfaz muestra que se esta modificando la fecha
+void LCD_ModFecha() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("MODIFICAR FECHA");
+}
+// La interfaz muestra que se esta modificando el programa
+void LCD_ModProg() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("MODIFICAR PROG.");
+}
 void setup() {
+    Serial.begin(9600);
+
     // Inicialización LCD
     lcd.init();
     lcd.backlight();
@@ -207,9 +285,9 @@ void setup() {
 void loop() {
     // Comprobar si debe iniciar el programa
     if (isProgram()) {
-
         // Estación 1
-        lcdRegando(1);
+        Serial.println("Estado: REGANDO 1");
+        LCD_Regando(1);
         setSprinkler(ESTACION_1, true);
         setTimer(prog.duracion);
         while (!timeOut) {
@@ -224,7 +302,8 @@ void loop() {
         timeOut = false;
 
         // Estación 2
-        lcdRegando(2);
+        Serial.println("Estado: REGANDO 2");
+        LCD_Regando(2);
         setSprinkler(ESTACION_2, true);
         setTimer(prog.duracion);
         while (!timeOut) {
@@ -241,48 +320,146 @@ void loop() {
 
     // Navegar menus
     if (pollButtons() == ENTER) {
+        bool fin = false;
+        lcd.blink();
+        // Setup menu hora
         LCD_GoToHora();
-        // Cancel regresa atras (Loop normal)
-        while (pollButtons() != CANCEL) {
-            // Ingreso a modificar hora
+        Serial.println("Estado: MENU HORA"); // debug
+        // Loop menu hora
+        while (pollButtons() != CANCEL && !fin) {
+            // Setup modificar hora
             if (buttonPress == ENTER) {
-                lcd.clear();
-                lcd.setCursor(0, 0);
-                lcd.print("MODIFICANDO HORA");
-                while (pollButtons() != CANCEL) {
-
+                Serial.println("Estado: MOD HORA"); // debug
+                LCD_ModHora();
+                Time curr = getTime();
+                int state = 0; //0 mod hora, 1 mod min, 2 guardar
+                // Loop modificar hora
+                while (pollButtons() != CANCEL && !fin) {
+                    LCD_Time(curr);
+                    pollButtons();
+                    switch (state) {
+                    case 0:
+                        lcd.setCursor(6, 1);
+                        if (buttonPress == UP) {
+                            curr.hour++;
+                            if (curr.hour > 23) curr.hour = 0;
+                        }
+                        else if (buttonPress == ENTER) {
+                            state = 1; //grabar hora y pasar a mod min
+                        }
+                        break;
+                    case 1:
+                        lcd.setCursor(9, 1);
+                        if (buttonPress == UP) {
+                            curr.min++;
+                            if (curr.min > 59) curr.min = 0;
+                        }
+                        else if (buttonPress == ENTER) {
+                            setTime(curr);
+                            // debug
+                            Serial.println("Nueva hora guardada");
+                            Serial.print(curr.hour);
+                            Serial.print(":");
+                            Serial.println(curr.min);
+                            // end debug
+                            fin = true;
+                        }
+                        break;
+                    }
+                    if (buttonPress == CANCEL){
+                        if(state > 0) state--;
+                        else fin=true;
+                    }
                 }
             }
-            // Siguiente menu: modificar fecha
+            // Setup menu fecha
             else if (buttonPress == UP) {
                 LCD_GoToFecha();
-                // Cancel regresa atras (Modificar hora?)
-                while (pollButtons() != CANCEL) {
-                    // Ingresar a modificar Fecha
+                // Loop menu fecha
+                while (pollButtons() != CANCEL && !fin) {
+                    // Setup modificar fecha
                     if (buttonPress == ENTER) {
-                        lcd.clear();
-                        lcd.setCursor(0, 0);
-                        lcd.print("MODIFICAN2 FECHA");
-                        lcd.blink();
-                        while (pollButtons() != CANCEL) {
-
+                        LCD_ModFecha();
+                        fin = false;
+                        Time curr = getTime();
+                        int state = 0; //0 mod dow, 1 mod dia, 2 mod mes, 3 mod año
+                        // Loop modificar fecha
+                        while (pollButtons() != CANCEL && !fin) {
+                            LCD_Date(curr);
+                            pollButtons();
+                            switch (state) {
+                            case 0: //mod dow
+                                lcd.setCursor(3, 1);
+                                if (buttonPress == UP) {
+                                    curr.dow++;
+                                    if (curr.dow > 7) curr.dow = 1;
+                                }
+                                else if (buttonPress == ENTER) {
+                                    state = 1; //grabar dow y pasar a mod dia
+                                }
+                                break;
+                            case 1: //mod dia
+                                lcd.setCursor(7, 1);
+                                if (buttonPress == UP) {
+                                    curr.date++;
+                                    if (curr.date > 31) curr.date = 1;
+                                }
+                                else if (buttonPress == ENTER) { //grabar dia y pasar a mod mes
+                                    state = 2;
+                                }
+                                break;
+                            case 2: //mod mes
+                                lcd.setCursor(10, 1);
+                                if (buttonPress == UP) {
+                                    curr.mon++;
+                                    if (curr.mon > 12) curr.mon = 1;
+                                }
+                                else if (buttonPress == ENTER) { //grabar mes y pasar a mod año
+                                    state = 3;
+                                }
+                                break;
+                            case 3: //mod añó
+                                lcd.setCursor(12, 1);
+                                if (buttonPress == UP) {
+                                    curr.year++;
+                                    if (curr.year > 99) curr.year = 0;
+                                }
+                                else if (buttonPress == ENTER) { //grabar fecha y salir
+                                    setDate(curr);
+                                    // debug
+                                    Serial.println("Nueva fecha guardada");
+                                    Serial.print(curr.dow);
+                                    Serial.print(" ");
+                                    Serial.print(curr.date);
+                                    Serial.print("/");
+                                    Serial.print(curr.mon);
+                                    Serial.print("/");
+                                    Serial.println(curr.year);
+                                    // end debug
+                                    fin = true;
+                                }
+                                break;
+                            }
+                            if (buttonPress == CANCEL && state > 0) state--;
                         }
                     }
-                    // Siguiente menu: modificar programa
+                    // Setup menu programa
                     else if (buttonPress == UP) {
                         LCD_GoToProg();
-                        // Cancel regresa atras (Modificar fecha?)
+                        // Loop menu programa
                         while (pollButtons() != CANCEL) {
-                            // Ingresar a menu Modificar Programa
+                            // Setup modificar programa
                             if (buttonPress == ENTER) {
                                 lcd.clear();
                                 lcd.setCursor(0, 0);
                                 lcd.print("MODIFICAN2 PROGRAMA");
                                 lcd.blink();
+                                // Loop modificar programa
                                 while (pollButtons() != CANCEL) {
                                 }
-                            }else if (buttonPress == UP) break;
-                            // No hay más menús
+                            }
+                            else if (buttonPress == UP) break; // No hay más menús
+
                         }
                         LCD_GoToFecha();
                     }
@@ -296,9 +473,10 @@ void loop() {
     // Reinicio de seguridad a las 0:00 para evitar eventual overflow de millis()
     if (isSafetyReset()) {
         safetyReset();
+        Serial.println("Estado: RESET");
     }
 
     // Stand By
     delay(1000);
-    printTime();
+    LCD_Time();
 }

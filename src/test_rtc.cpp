@@ -1,7 +1,7 @@
 // #include <Arduino.h>
 // #include <DS1302.h>
 
-// DS1302 rtc(5, 6, 7);
+// DS1302 rtc(4, 5, 6);
 // void setup() {
 //     // estado incierto en start up
 //     rtc.halt(false);
