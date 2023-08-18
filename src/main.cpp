@@ -53,8 +53,6 @@ Time getTime() {
 }
 // Programa la hora en el reloj
 void setTime(Time curr) {
-    // rtc.setDOW(curr.dow);        // Set Day-of-Week
-    // rtc.setDate(curr.date, curr.mon, curr.year);   // Dd-Mm-YYYY
     rtc.setTime(curr.hour, curr.min, 0);     // 24hr format
 }
 // Programa la fecha en el reloj
@@ -178,6 +176,7 @@ void LCD_Time(Time curr) {
 }
 // Imprime fecha del tiempo pasado por argumento
 void LCD_Date(Time curr) {
+    delay(50);
     lcd.setCursor(2, 1);
     switch (curr.dow) {
     case MONDAY:
@@ -254,6 +253,28 @@ void LCD_ModProg() {
     lcd.setCursor(0, 0);
     lcd.print("MODIFICAR PROG.");
 }
+
+void LCD_P_Dias() {
+    lcd.clear();
+    lcd.setCursor(1, 0);
+    lcd.print("PROGRAMA: DIAS");
+    lcd.setCursor(1, 1);
+    lcd.print("L_M_X_J_V_S_D_");
+
+    int cursor = 2;
+    for (int i = 0; i < 7; i++) {
+        lcd.setCursor(cursor, 1);
+        if (prog.dows[i] > 0) {
+            lcd.print("*");
+        }
+        cursor += 2;
+    }
+}
+
+void LCD_P_Hora() {
+
+}
+
 void setup() {
     Serial.begin(9600);
 
@@ -366,9 +387,9 @@ void loop() {
                         }
                         break;
                     }
-                    if (buttonPress == CANCEL){
-                        if(state > 0) state--;
-                        else fin=true;
+                    if (buttonPress == CANCEL) {
+                        if (state > 0) state--;
+                        else fin = true;
                     }
                 }
             }
@@ -397,6 +418,7 @@ void loop() {
                                 else if (buttonPress == ENTER) {
                                     state = 1; //grabar dow y pasar a mod dia
                                 }
+                                else if (buttonPress == CANCEL) fin = true;
                                 break;
                             case 1: //mod dia
                                 lcd.setCursor(7, 1);
@@ -418,11 +440,11 @@ void loop() {
                                     state = 3;
                                 }
                                 break;
-                            case 3: //mod añó
+                            case 3: //mod año
                                 lcd.setCursor(12, 1);
                                 if (buttonPress == UP) {
                                     curr.year++;
-                                    if (curr.year > 99) curr.year = 0;
+                                    if (curr.year > 2100) curr.year = 2000;
                                 }
                                 else if (buttonPress == ENTER) { //grabar fecha y salir
                                     setDate(curr);
@@ -447,24 +469,50 @@ void loop() {
                     else if (buttonPress == UP) {
                         LCD_GoToProg();
                         // Loop menu programa
-                        while (pollButtons() != CANCEL) {
+                        while (pollButtons() != CANCEL && !fin) {
                             // Setup modificar programa
                             if (buttonPress == ENTER) {
-                                lcd.clear();
-                                lcd.setCursor(0, 0);
-                                lcd.print("MODIFICAN2 PROGRAMA");
-                                lcd.blink();
-                                // Loop modificar programa
-                                while (pollButtons() != CANCEL) {
+                                LCD_P_Dias();
+                                fin = false;
+                                int state = 0;
+                                int dow = 0; //0-6
+                                switch (state) {
+                                case 0:
+                                    // Modificar dias de riego
+                                    while (pollButtons() != CANCEL && !fin) {
+                                        lcd.setCursor((dow+1) * 2, 1); //colocar cursor sobre dia a modificar
+                                        if (buttonPress == UP) {
+                                            dow++;
+                                            if (dow > 6) { //pasar a selec hora
+                                                state++;
+                                                LCD_P_Hora();
+                                            }
+                                        }
+                                        else if (buttonPress == ENTER) {
+                                            prog.dows[dow] = 1;
+                                            LCD_P_Dias();
+                                        }
+                                        else if (buttonPress == CANCEL) {
+                                            if (dow > 0) dow--;
+                                            else fin = true;
+                                        }
+                                    }
+                                    break;
+                                case 1:
+                                    // Modificar hora de riego
+                                    while (pollButtons() != CANCEL && !fin) {
+                                        lcd.print("Modificar hora");
+                                    }
+                                    break;
+                                case 2:
+                                    break;
                                 }
                             }
                             else if (buttonPress == UP) break; // No hay más menús
 
                         }
-                        LCD_GoToFecha();
                     }
                 }
-                LCD_GoToHora();
             }
         }
         lcd.noBlink();
